@@ -1,6 +1,6 @@
 import sys
 import shutil
-from multiprocessing import Process
+from threading import Thread as _Parallel_impl
 from time import time
 from report import Report, to_screen
 from os.path import isfile, realpath
@@ -115,7 +115,7 @@ class Downloader(object):
         reqs = h["reqs"]
         for i in reqs:
             th.append(
-                Process(
+                _Parallel_impl(
                     target=self._download_handler,
                     args=({**hdr, "range": i["range"]}, fn, i["file_index"]),
                 )
@@ -136,14 +136,15 @@ class Downloader(object):
         ranges = data["reqs"]
         ret = []
         self.threads = len(ranges)
+        to_screen("Continuing File Download\n")
         for i in ranges:
             idx = i["file_index"]
             size = i["file_size"]
             completed = safe_getsize(get_cachedir(f"{previous_file}.part.{idx}"))
             if completed >= size:
-                print("skip")
+                to_screen("skipping")
                 continue
-            print(completed, i["from"])
+            to_screen(f'Chunk number: {idx} \n completed : {to_MB(completed)} of {to_MB(size)} MB\n')
             ret.append(
                 {"range": f"bytes={i['from']+completed}-{i['to']}", "file_index": idx}
             )
