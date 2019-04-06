@@ -1,31 +1,30 @@
 import sys
 import shutil
-from threading import Thread
+from multiprocessing import Process
 from time import time
 from report import Report, to_screen
-import argparse
 from os.path import isfile, realpath
 from os import remove
 
-from util import make_range_sizes, safe_getsize, force_round
+from util import make_range_sizes, safe_getsize, force_round,to_MB
 from _cache import get_cached_file, make_cached_file, get_cachedir
 from URL import URL, UA_d, basic_headers
-
-parser = argparse.ArgumentParser(description="Download Files in Multiple threads")
-parser.add_argument("url", metavar="URL", type=str, nargs="+")
-parser.add_argument("--ua", metavar="User Agent")
-parser.add_argument("-f", metavar="Output  Filename")
 
 
 class Downloader(object):
     """the downloader class"""
+
     is_resumable: bool = False
     start_time: int = 0
     did_resume: bool = False
     report: bool = True
 
     def _make_file(self):
-        """internal method that combines all the temporary files into the final file"""
+        """internal method that combines all the 
+           temporary files into the final file
+        """
+        if self._downloaded_size!=self.filesize:
+            raise Exception (f"Downloaded filesize ({self._downloaded_size})  does not match expected size of {to_MB(self.filesize)} MB")
         c = self.threads
         with open(self.save_path, "wb") as wfd:
             for i in range(c):
@@ -35,10 +34,10 @@ class Downloader(object):
                 remove(f)
         remove(get_cachedir(f"{self._meta_file_name}.data.json"))
 
-    def _progress_callback(self,size,speed,perc):
+    def _progress_callback(self, size, speed, perc):
         """progress messages"""
         to_screen(
-            f"\rSize: {force_round(size/1e6,2)} MB Downloaded: {perc}% -- Speed: {speed} MB/s  "
+            f"\rSize: {to_MB(size)} MB Downloaded: {perc}% -- Speed: {speed} MB/s  "
         )
         sys.stdout.flush()
 
@@ -47,13 +46,15 @@ class Downloader(object):
         return time() - self.start_time
 
     @property
-    def _downloaded_size(self):
+    def _downloaded_size(self,):
         return sum(
             safe_getsize(get_cachedir(f"{self.filename}.part.{i}"))
             for i in range(self.threads)
         )
-
-    def __init__(self, url, ua=UA_d, f=None, is_cli: bool = False):
+ 
+    def __init__(
+        self, url, ua=UA_d, f=None, intermediate_fn: str = None, is_cli: bool = False
+    ):
         self.url = URL(url)
         self.url.follow_redirects()
         self.user_agent = ua
@@ -65,11 +66,13 @@ class Downloader(object):
             self.url._m_headers.get("accept-ranges", "").lower() == "bytes"
         )
         self._meta_file_name = self.url.get_filesafe_url()
-        self.filename = self.url.get_suggested_filename() or self._meta_file_name
-        self.save_path = f or realpath(self.filename)
+        self.filename = intermediate_fn or self._meta_file_name
+        self.save_path = f or realpath(
+            self.url.get_suggested_filename() or self.filename
+        )
         if isfile(self.save_path):
             raise Exception(f"Filename:{self.save_path} already exists")
-        print(f"Filesize: {round(self.filesize/1e6,2)} MB")
+        print(f"Filesize: {to_MB(self.filesize)} MB")
 
     def _generate_init_headers(self, thread_count: int):
         req = []
@@ -99,20 +102,20 @@ class Downloader(object):
                         f.write(c)
                 if self.report:
                     elapsed = self._elapsed_time
+                  
                     size = self._downloaded_size
                     perc = force_round((size / self.filesize) * 100, 2)
-                    speed = force_round((size/1e6)/elapsed,2)
-                    self._progress_callback(size,speed,perc)
+                    speed = force_round((size / 1e6) / elapsed, 2)
+                    self._progress_callback(size, speed, perc)
 
     def _spawn_downloaders(self, h: dict):
         hdr = h["headers"]
         fn = h["filename"]
         th = []
         reqs = h["reqs"]
-        self.threads = len(reqs)
         for i in reqs:
             th.append(
-                Thread(
+                Process(
                     target=self._download_handler,
                     args=({**hdr, "range": i["range"]}, fn, i["file_index"]),
                 )
@@ -160,6 +163,12 @@ class Downloader(object):
 
 
 if __name__ == "__main__":
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser(description="Download Files in Multiple threads")
+    parser.add_argument("url", metavar="URL", type=str, nargs="+")
+    parser.add_argument("--ua", metavar="User Agent")
+    parser.add_argument("-f", metavar="Output  Filename")
     args = parser.parse_args()
     url = args.url[0]
     if args.ua is not None:
