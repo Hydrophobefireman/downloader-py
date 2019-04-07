@@ -26,8 +26,7 @@ basic_headers = {
 
 
 def _abort_request_after(url: str, byte_len: int = 1024):
-    sess = requests.Session()
-    with sess.get(
+    with requests.get(
         url, headers=basic_headers, allow_redirects=True, stream=True
     ) as chunk:
         for _ in chunk.iter_content(byte_len):

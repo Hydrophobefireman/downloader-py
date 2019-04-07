@@ -185,15 +185,16 @@ class URL:
         self.request = res
         return res
 
-    def update_url_meta_data(self, use_head: bool = False) -> None:
+    def update_url_meta_data(self) -> None:
         """Get general meta data about the url"""
         headers: dict
         url: str
-        if use_head:
-            ret = req.head(str(self), headers=basic_headers)
+        try:
+            ret = req.head(str(self), headers=basic_headers, allow_redirects=True)
+            ret.raise_for_status()
             headers, url = ret.headers, ret.url
-        else:
-            headers, url = _abort_request_after(str(self), 500)
+        except:
+            headers, url = _abort_request_after(str(self), 1500)
         self.has_meta_data = True
         self._m_headers = headers
         self._parsed = _parse(url)

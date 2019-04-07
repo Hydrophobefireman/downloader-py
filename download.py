@@ -24,7 +24,7 @@ class Downloader(object):
            temporary files into the final file
         """
         if self._downloaded_size!=self.filesize:
-            raise Exception (f"Downloaded filesize ({self._downloaded_size})  does not match expected size of {to_MB(self.filesize)} MB")
+            raise Exception (f"Downloaded filesize ({to_MB(self._downloaded_size)})  does not match expected size of {to_MB(self.filesize)} MB")
         c = self.threads
         with open(self.save_path, "wb") as wfd:
             for i in range(c):
@@ -107,7 +107,15 @@ class Downloader(object):
                     perc = force_round((size / self.filesize) * 100, 2)
                     speed = force_round((size / 1e6) / elapsed, 2)
                     self._progress_callback(size, speed, perc)
-
+    def _simple_fetch(self):
+        to_screen("Only reporting size downloaded\n")
+        with open(self.save_path,"wb") as f:
+            with self.url.fetch(headers=basic_headers,stream=True,refetch=True) as r:
+               for c in r.iter_content(chunk_size=2048):
+                   if c:
+                         f.write(c)
+                         self._progress_callback(safe_getsize(self.save_path),0,0)
+        
     def _spawn_downloaders(self, h: dict):
         hdr = h["headers"]
         fn = h["filename"]
@@ -161,7 +169,9 @@ class Downloader(object):
             else:
                 self._spawn_downloaders(self._generate_init_headers(thread_count))
             self._make_file()
-
+        else:
+            to_screen(f"Server at {self.url.host} does not support multi threading\n")
+            self._simple_fetch()
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
