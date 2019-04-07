@@ -105,7 +105,7 @@ class Downloader(object):
                   
                     size = self._downloaded_size
                     perc = force_round((size / self.filesize) * 100, 2)
-                    speed = force_round((size / 1e6) / elapsed, 2)
+                    speed = force_round((size / 1024*1024) / elapsed, 2)
                     self._progress_callback(size, speed, perc)
     def _simple_fetch(self):
         to_screen("Only reporting size downloaded\n")

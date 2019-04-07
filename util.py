@@ -48,4 +48,4 @@ def force_round(n, i: int) -> str:
     return f"%.{i}f" % n
 
 
-to_MB = lambda x: force_round(x / 1e6, 2)
+to_MB = lambda x: force_round(x / (1024*1024), 2)
