@@ -4,7 +4,7 @@ Stuff for cached and temp files
 
 from os import mkdir as _i_mkdir
 from os.path import join as _join, isfile as _isfile, isdir as _isdir
-from util import script_dir, MetaError
+from .util import script_dir, MetaError
 from json import load as _load, dump as _dump
 
 
