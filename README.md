@@ -21,6 +21,9 @@ python download.py "$url"
  Or you could provide your file name by passing it through `-f`
  
  By default it uses a desktop chrome user agent but you can change it by passing a user agent string through `--ua`
+ 
+ download directory can be set by setting `-d`
+
 ***
 ## Using the Downloader in your python app:
 
@@ -28,7 +31,7 @@ The api is small and simple enough and can be easily used for downloading files 
 
 You could do something like this:
 ```python
-from download import Downloader as d
+from dl import Downloader as d
 def download_file(url:str)->None:
     file = d(url,f="path/to/file.txt")
     file.start(thread_count=4)
@@ -39,7 +42,7 @@ by default the progress is not reported using a bar, but textual information is 
 to change that behavior you can extend the `_progress_callback`  method
 
 ```python
-from download import Downloader
+from dl import Downloader
 class ProgressBarDownloader(Downloader):
     def _progress_callback(
         self, downloaded_size: float, 
