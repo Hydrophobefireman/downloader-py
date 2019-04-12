@@ -71,7 +71,8 @@ class Downloader(object):
         self.report.report_init()
         self.filesize = self.url.file_size
         self.is_resumable = (
-            self.url._m_headers.get("accept-ranges", "").lower() == "bytes" and self.filesize
+            self.url._m_headers.get("accept-ranges", "").lower() == "bytes"
+            and self.filesize
         )
         self._meta_file_name = self.url.get_filesafe_url()
         self.filename = intermediate_fn or self._meta_file_name

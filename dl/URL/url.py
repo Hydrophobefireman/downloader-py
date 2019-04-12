@@ -10,7 +10,7 @@ from urllib.parse import (
 from hashlib import new as new_hash_fn
 from typing import Callable, Tuple, Union
 from secrets import token_urlsafe
-from .err import warn_requests, warn_refetch, warn_first_fetch
+from .err import warn_requests, warn_refetch, warn_first_fetch, warn_no_hash
 from .util import (
     basic_headers,
     _normalise_url,
