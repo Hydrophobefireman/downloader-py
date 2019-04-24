@@ -7,6 +7,7 @@ from urllib.parse import (
     urljoin as _urljoin,
     unquote,
 )
+from os.path import splitext
 from hashlib import new as new_hash_fn
 from typing import Callable, Tuple, Union
 from secrets import token_urlsafe
@@ -199,6 +200,10 @@ class URL:
         self._m_headers = headers
         self._parsed = _parse(url)
 
+    def _set_extension(self, name: str) -> str:
+        fn = splitext(name)
+        return fn[0] + self.file_extension
+
     def get_suggested_filename(self, get_random: bool = True):
         url_path = self.path
         search = self.search
@@ -215,12 +220,14 @@ class URL:
                 n = spl[-1]
                 if n:
                     return self.s_get_filesafe_url(n, False)
-        return self.get_filesafe_url(
-            (
-                qs.get("file")
-                or qs.get("filename")
-                or qs.get("download")
-                or token_urlsafe(10) + self.file_extension
+        return self._set_extension(
+            self.get_filesafe_url(
+                (
+                    qs.get("file")
+                    or qs.get("filename")
+                    or qs.get("download")
+                    or token_urlsafe(10)
+                )
             )
         )
 
@@ -228,7 +235,7 @@ class URL:
     def file_extension(self):
         if not self.has_meta_data:
             return ".bin"
-        ct = self._m_headers.get("content-type", "").lower()
+        ct = self._m_headers.get("content-type", "").lower().split(";")[0].strip()
         return mime_types.get(ct, ".bin")
 
     @property

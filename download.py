@@ -9,9 +9,10 @@ if __name__ == "__main__":
     parser.add_argument("--ua", metavar="User Agent")
     parser.add_argument("-f", metavar="Output  Filename")
     parser.add_argument("-d", metavar="Output directory")
+    parser.add_argument("-t",type=int,metavar="thread count")
     args = parser.parse_args()
     url = args.url[0]
     out_dir = args.d
     user_agent = args.ua
     filen = args.f
-    Downloader(url, ua=user_agent, f=filen, d=out_dir).start()
+    Downloader(url, ua=user_agent, f=filen, d=out_dir,t=args.t).start()
