@@ -210,7 +210,7 @@ class URL:
         qs = _qsparse(search)
         if self.has_meta_data:
             f = self._m_headers.get("content-disposition")
-            if f:
+            if f and False:
                 return remove_quotes(f.split("filename=")[1])
             # highest priority given to content disposition
         has_fwd_slash = "/" in url_path
