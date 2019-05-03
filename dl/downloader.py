@@ -71,7 +71,7 @@ class Downloader(object):
     def __init__(
         self,
         url,
-        ua=UA_d,
+        ua,
         f=None,
         d=None,
         intermediate_fn: str = None,
@@ -86,7 +86,7 @@ class Downloader(object):
         self._verbose_logger("URL-RECEIVED", str(self.url))
         self.url.follow_redirects()
         self._verbose_logger("URL-REDIR", str(self.url))
-        self.user_agent = ua
+        self.user_agent = ua or UA_d
         self.is_cli = is_cli
         self.report = Report(is_cli)
         self.report.report_init()
