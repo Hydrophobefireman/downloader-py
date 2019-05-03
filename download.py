@@ -16,4 +16,4 @@ if __name__ == "__main__":
     out_dir = args.d
     user_agent = args.ua
     filen = args.f
-    Downloader(url, ua=user_agent, f=filen, d=out_dir, t=args.t,v=args.verbose).start()
+    Downloader(url, ua=user_agent, f=filen, d=out_dir, t=args.t, v=args.verbose).start()

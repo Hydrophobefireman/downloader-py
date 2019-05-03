@@ -1,44 +1,59 @@
-import sys
 import shutil
+import sys
+from os import remove
+from os.path import basename, isfile, join, realpath
 from threading import Thread as _Parallel_impl
 from time import time
+from typing import Union, Optional
+from ._cache import get_cached_file, get_cachedir, make_cached_file
 from .report import Report, to_screen
-from os.path import isfile, realpath, basename, join
-from os import remove
-
-from .util import make_range_sizes, safe_getsize, force_round, to_MB
-from ._cache import get_cached_file, make_cached_file, get_cachedir
 from .URL import URL, UA_d, basic_headers
+from .util import force_round, make_range_sizes, safe_getsize, to_MB
 
 
 class Downloader(object):
-    """the downloader class"""
+    """
+    Downloader Class  
+        Args:
+            url (Union[URL, str]): the url to download
+            ua (Optional[str], optional): User Agent to pass in the headers. Defaults to None.
+            f (Optional[str], optional): Filename to save the file to. Defaults to None.
+            d (Optional[str], optional): Directory to save the file in. Defaults to None.
+            intermediate_fn (Optional[str], optional): Filename for the intermediate files created in the threads. Defaults to None.
+            is_cli (Optional[bool], optional): Is CLI. Defaults to False.
+            t (Optional[int], optional): Number of threads to run the download in. Defaults to 3.
+            v (Optional[bool], optional): Verbosity. Defaults to False.
+    """
 
     is_resumable: bool = False
     start_time: int = 0
     did_resume: bool = False
     report: bool = True
     _continued_size: int = 0
-    def _verbose_logger(self,t: str, *args, **k):
+
+    def _verbose_logger(self, t: str, *args, **k):
+
         if not self._verb:
             return
         logger_map = {
             "INIT": lambda: "Init Downloader",
             "URL-RECEIVED": lambda u: f"Sanitized URL:{u}",
             "URL-REDIR": lambda u: f"After Redirect:{u}",
-         #   "HEADERS-GENERATED": lambda u: ("Headers Generated", u),
-            "INIT-INFO": lambda ua, is_resumable, s_path, m_file: f"User agent:{ua}\n[logger]resumable: {is_resumable}\n[logger]save path:{s_path}\n[logger]Meta filename:{m_file}",
+            "INIT-INFO": lambda ua, is_resumable, s_path, m_file: f"User agent:{ua}\n\
+                [logger]resumable: {is_resumable}\n[logger]save path:{s_path}\n[logger]Meta filename:{m_file}",
         }
         fn = logger_map.get(t)
         if fn:
             return print("[logger]", fn(*args, **k) if args else fn(**k))
 
     def _make_file(self):
-        """internal method that combines all the 
-           temporary files into the final file
+        """
+        Internal method that combines all the temporary files into the final file
+        Raises:
+           ValueError: When the size of the intermediate files does not match the file size in the content-length headers
         """
         if self._downloaded_size != self.filesize:
-            raise Exception(
+            raise ValueError(
                 f"Downloaded filesize ({to_MB(self._downloaded_size)})  does not match expected size of {to_MB(self.filesize)} MB"
             )
         c = self.threads
@@ -50,8 +65,14 @@ class Downloader(object):
                 remove(f)
         remove(get_cachedir(f"{self._meta_file_name}.data.json"))
 
-    def _progress_callback(self, size, speed, perc):
-        """progress messages"""
+    def _progress_callback(self, size: float, speed: float, perc: float):
+        """Called Everytime the request receives a chunk of data and updates the screen
+        
+        Args:
+            size (float): Current downloaded file size
+            speed (float): Calculated speed of the download
+            perc (float): Download Percentage
+        """
         to_screen(
             f"\rSize: {to_MB(size)} MB Downloaded: {perc}% -- Speed: {speed} MB/s  "
         )
@@ -62,7 +83,7 @@ class Downloader(object):
         return time() - self.start_time
 
     @property
-    def _downloaded_size(self,):
+    def _downloaded_size(self):
         return sum(
             safe_getsize(get_cachedir(f"{self.filename}.part.{i}"))
             for i in range(self.threads)
@@ -70,15 +91,16 @@ class Downloader(object):
 
     def __init__(
         self,
-        url,
-        ua,
-        f=None,
-        d=None,
-        intermediate_fn: str = None,
-        is_cli: bool = False,
-        t: int = 3,
-        v: bool = False,
+        url: Union[URL, str],
+        ua: Optional[str] = None,
+        f: Optional[str] = None,
+        d: Optional[str] = None,
+        intermediate_fn: Optional[str] = None,
+        is_cli: Optional[bool] = False,
+        t: Optional[int] = 3,
+        v: Optional[bool] = False,
     ):
+
         self._verb = v
         self._verbose_logger("INIT")
         self.__thread_count = t or 3
@@ -107,10 +129,19 @@ class Downloader(object):
             self._meta_file_name,
         )
         if isfile(self.save_path):
-            raise Exception(f"Filename:{self.save_path} already exists")
+            raise FileExistsError(f"Filename:{self.save_path} already exists")
         print(f"Filesize: {to_MB(self.filesize)} MB")
 
-    def _generate_init_headers(self, thread_count: int):
+    def _generate_init_headers(self, thread_count: int) -> dict:
+        """Generate initial headers for the download
+        
+        Args:
+            thread_count (int): Number of threads to download the file in
+
+        Returns:
+            dict: headers for the download
+        """
+
         req = []
         previous_range = 0
         range_headers = make_range_sizes(self.filesize, thread_count)
@@ -129,7 +160,14 @@ class Downloader(object):
         make_cached_file(self._meta_file_name, reqs)
         return reqs
 
-    def _download_handler(self, h, file, idx):
+    def _download_handler(self, h: dict, file: str, idx: int):
+        """file download handler,to be called in a thread
+        
+        Args:
+            h (dict): Headers for the request
+            file (str): filename for the partial file
+            idx (int): partial file index
+        """
         n = get_cachedir(f"{file}.part.{idx}")
         with open(n, "ab") as f:
             with self.url.fetch(headers=h, stream=True, refetch=True) as r:
@@ -146,6 +184,9 @@ class Downloader(object):
                         self._progress_callback(size, speed, perc)
 
     def _simple_fetch(self):
+        """
+        Downloader for when the server does not support partial downloads
+        """
         to_screen("Only reporting size downloaded\n")
         with open(self.save_path, "wb") as f:
             with self.url.fetch(headers=basic_headers, stream=True, refetch=True) as r:
@@ -155,6 +196,11 @@ class Downloader(object):
                         self._progress_callback(safe_getsize(self.save_path), 0, 0)
 
     def _spawn_downloaders(self, h: dict):
+        """Spawn downloader threads
+        
+        Args:
+            h (dict): range headers and filename
+        """
         hdr = h["headers"]
         fn = h["filename"]
         th = []
@@ -175,8 +221,15 @@ class Downloader(object):
         except:
             pass
 
-    def _alter_headers(self, data: dict):
-        """change headers  fot continued downloads"""
+    def _alter_headers(self, data: dict) -> dict:
+        """Alter headers for continued file downloads
+        
+        Args:
+            data (dict): previous headers
+        
+        Returns:
+            dict: new headers and filename
+        """
         headers = data["headers"]
         previous_file = data["filename"]
         ranges = data["reqs"]
@@ -200,7 +253,12 @@ class Downloader(object):
 
         return {"headers": headers, "filename": previous_file, "reqs": ret}
 
-    def start(self, thread_count=None):
+    def start(self, thread_count: int = None):
+        """Start the file download
+        
+        Args:
+            thread_count (int, optional): number of threads to download the file in. Defaults to None.
+        """
         self.start_time = time()
         self.threads = thread_count or self.__thread_count
         if self.is_resumable:

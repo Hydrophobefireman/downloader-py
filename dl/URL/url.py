@@ -31,7 +31,7 @@ class URL:
     """Simple url class that implements requests method in it 
 	and also has some other methods made available that allow
 	 guessing mime types and file names
-	"""
+    """
 
     has_meta_data: bool = False
     request = None
@@ -74,12 +74,26 @@ class URL:
     )
 
     def __setattr__(self, _attr, value):
+        """set attribute of the internal parsed url
+        
+        Args:
+            _attr (string): attribute key to set
+            value (Any): attribute vallue
+        """
         attr = self._attrmap.get(_attr, _attr)  # allows simple aliasing
-        if attr in self._readonlyattrs:  # don't allow overwriting them
-            raise Exception(f"Can not change readonly attribute: {attr}")
+        if attr in self._readonlyattrs:
+            self.change_url_attr(attr, value)
         object.__setattr__(self, attr, value)
 
     def __getattr__(self, _attr):
+        """if the url has been fetch()'ed, then it unlocks the request methods on it
+        
+        Args:
+            _attr (key)
+        
+        Raises:
+            AttributeError: attempting to access request attributes without fetching
+        """
         attr = self._attrmap.get(_attr, _attr)
         if attr in self._readonlyattrs:
             return object.__getattribute__(self._parsed, attr)
@@ -89,7 +103,14 @@ class URL:
 
     @staticmethod
     def attempt_url_fix(u: str) -> str:
-        """attempts to fix common mistakes while passing a url"""
+        """attempts to fix common mistakes while passing a url
+        
+        Args:
+            u (str): possible malformed url
+        
+        Returns:
+            str: fixed url
+        """
         if isinstance(u, URL):
             return str(u)
         if u.startswith("//"):
@@ -103,7 +124,16 @@ class URL:
 
     @staticmethod
     def s_get_filesafe_url(_url, hashed: bool = True) -> str:
-        """static method that either returns a sha1-hashed url string or a sanitized filename-safe url for saving in files"""
+        """static method that either returns a sha1-hashed url string or a sanitized filename-safe url for saving in files
+        
+        Args:
+            _url (Union[URL,str]): the url like object or string to get a filesafe string from  
+            hashed (bool, optional): 
+                if True, simply returns a sha1 hash of the url else replaces unsafe characters. Defaults to True.
+        
+        Returns:
+            str: sanitized url
+        """
         url = str(_url)
         if hashed:
             return URL.s_get_url_hash(url)
@@ -116,12 +146,18 @@ class URL:
     @staticmethod
     def s_get_url_hash(_url, hash_method: str = "sha1") -> str:
         """returns hash of the given url..useful for creating intermediate files for different urls 
-			[Example]
-			 >>> get_url_hash("https://google.com","sha256")
-			 >>>'05046f26c83e8c88b3ddab2eab63d0d16224ac1e564535fc75cdceee47a0938d'
+        
+        Args:
+            _url Union[URL,str]: URL to hash
+            hash_method (str, optional): hashing function. Defaults to "sha1".
+        Example:			
+			>>> get_url_hash("https://google.com","sha256")
+		    '05046f26c83e8c88b3ddab2eab63d0d16224ac1e564535fc75cdceee47a0938d'
+        Returns:
+            str: hash of the string
         """
         url = str(_url)
-        method: Callable[[str], str]
+        method: Callable[str, str]
         try:
             method = new_hash_fn(hash_method)
         except ValueError:  # hashlib/platform doesn't support the method
@@ -144,10 +180,21 @@ class URL:
         return _unparse(self._parsed)
 
     def change_url_attr(self, _k: str, v) -> None:
-        """used to change any readonly url attribute"""
+        """used to change any readonly url attribute    
+        
+        Args:
+            _k (str): attribute name
+            v (Any): value
+        
+        Raises:
+            AttributeError: raised when an attribute that does not belong to ParseResult
+        
+        Returns:
+            None
+        """
         k = self._attrmap.get(_k, _k)
         if k not in self._readonlyattrs:
-            raise Exception(f"cannot update attribute:{_k}")
+            raise AttributeError(f"cannot update attribute:{_k}")
         dc = self._parsed._asdict()
         dc[k] = v
         self._parsed = ParseResult(**dc)
@@ -169,12 +216,24 @@ class URL:
         **kwargs,
     ):
         """use requests library functions on the url
-		accepts all kwargs that request takes"""
+		accepts all kwargs that request takes
+        
+        Args:
+            _method (str, optional): method of request. Defaults to "get".
+            refetch (bool, optional): if the url has to be fetched again. Defaults to False.
+            update_on_redirect (bool, optional): update url's value in case a redirect is faced. Defaults to True.
+        
+        Raises:
+            AttributeError: trying to use a method that request library does not support        
+        
+        Returns:
+            Response: Response object fro the requests library
+        """
         if self.request and not refetch:
             warn_refetch(self)
         method = _method.lower()
         if not hasattr(req, method):
-            raise Exception(f"Requests library does not support method {method}")
+            raise AttributeError(f"Requests library does not support method {method}")
         res = getattr(self.session, method)(
             str(self),
             allow_redirects=True,
@@ -187,7 +246,11 @@ class URL:
         return res
 
     def update_url_meta_data(self) -> None:
-        """Get general meta data about the url"""
+        """Get general meta data about the url
+        
+        Returns:
+            None
+        """
         headers: dict
         url: str
         try:
@@ -204,7 +267,17 @@ class URL:
         fn = splitext(name)
         return fn[0] + self.file_extension
 
-    def get_suggested_filename(self, get_random: bool = True):
+    def get_suggested_filename(self,) -> str:
+        """tries to get a filename for the url in case it's being saved
+           maximum priority is given to the server set content-disposition header
+           then it checks for the pathname
+           then some query string parameters
+           and in the end returns URL.get_filesafe_url()
+           it also appends the expected extension from the content-type headers
+        
+        Returns:
+            str: [filename for the url]
+        """
         url_path = self.path
         search = self.search
         qs = _qsparse(search)
@@ -242,11 +315,25 @@ class URL:
     def file_size(self):
         return int_or_none(self._m_headers.get("content-length", 0))
 
-    def follow_redirects(self,):
+    def follow_redirects(self):
         self.update_url_meta_data()
         return str(self)
 
     def get_relative_url(self, rel: str):
+        """construct a new URL object relative to the gives URL object
+
+        
+        Args:
+            rel (str): relative path of the url
+        
+        Returns:
+            URL: new URL object 
+        Example:
+        >>> u = URL("https://google.com")
+        >>> print(u.get_relative_url("/search?q=python"))
+        https://google.com/search?q=python
+
+        """
         return URL(_urljoin(str(self), rel))
 
     def refetch(self, *args, **kwargs):
