@@ -19,6 +19,19 @@ class Downloader(object):
     did_resume: bool = False
     report: bool = True
     _continued_size: int = 0
+    def _verbose_logger(self,t: str, *args, **k):
+        if not self._verb:
+            return
+        logger_map = {
+            "INIT": lambda: "Init Downloader",
+            "URL-RECEIVED": lambda u: f"Sanitized URL:{u}",
+            "URL-REDIR": lambda u: f"After Redirect:{u}",
+         #   "HEADERS-GENERATED": lambda u: ("Headers Generated", u),
+            "INIT-INFO": lambda ua, is_resumable, s_path, m_file: f"User agent:{ua}\n[logger]resumable: {is_resumable}\n[logger]save path:{s_path}\n[logger]Meta filename:{m_file}",
+        }
+        fn = logger_map.get(t)
+        if fn:
+            return print("[logger]", fn(*args, **k) if args else fn(**k))
 
     def _make_file(self):
         """internal method that combines all the 
@@ -64,10 +77,15 @@ class Downloader(object):
         intermediate_fn: str = None,
         is_cli: bool = False,
         t: int = 3,
+        v: bool = False,
     ):
+        self._verb = v
+        self._verbose_logger("INIT")
         self.__thread_count = t or 3
         self.url = URL(url)
+        self._verbose_logger("URL-RECEIVED", str(self.url))
         self.url.follow_redirects()
+        self._verbose_logger("URL-REDIR", str(self.url))
         self.user_agent = ua
         self.is_cli = is_cli
         self.report = Report(is_cli)
@@ -81,6 +99,13 @@ class Downloader(object):
         self.filename = intermediate_fn or self._meta_file_name
         save_path = f or (self.url.get_suggested_filename() or self.filename)
         self.save_path = join(d, basename(save_path)) if d else realpath(save_path)
+        self._verbose_logger(
+            "INIT-INFO",
+            self.user_agent,
+            self.is_resumable,
+            self.save_path,
+            self._meta_file_name,
+        )
         if isfile(self.save_path):
             raise Exception(f"Filename:{self.save_path} already exists")
         print(f"Filesize: {to_MB(self.filesize)} MB")
