@@ -10,6 +10,8 @@ from .report import Report, to_screen
 from .URL import URL, UA_d, basic_headers
 from .util import force_round, make_range_sizes, safe_getsize, to_MB
 
+_FILE_HASH_FLAG = object()
+
 
 class Downloader(object):
     """
@@ -57,6 +59,7 @@ class Downloader(object):
                 f"Downloaded filesize ({to_MB(self._downloaded_size)})  does not match expected size of {to_MB(self.filesize)} MB"
             )
         c = self.threads
+
         with open(self.save_path, "wb") as wfd:
             for i in range(c):
                 f = get_cachedir(f"{self.filename}.part.{i}")
@@ -119,7 +122,11 @@ class Downloader(object):
         )
         self._meta_file_name = self.url.get_filesafe_url()
         self.filename = intermediate_fn or self._meta_file_name
-        save_path = f or (self.url.get_suggested_filename() or self.filename)
+        save_path = (
+            self._meta_file_name
+            if f == "PY_HASH"
+            else (f or (self.url.get_suggested_filename() or self.filename))
+        )
         self.save_path = join(d, basename(save_path)) if d else realpath(save_path)
         self._verbose_logger(
             "INIT-INFO",
