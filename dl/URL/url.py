@@ -114,7 +114,7 @@ class URL:
         if isinstance(u, URL):
             return str(u)
         if u.startswith("//"):
-            u = f"http{u}"
+            u = f"http:{u}"
         p = _parse(u)
         if not p.scheme:
             u = f"http://{u}"
